@@ -38,6 +38,22 @@ CAboutDlg::CAboutDlg() : CDialogEx(IDD_ABOUTBOX)
 {
 }
 
+CUSERProgramDlg::~CUSERProgramDlg()
+{
+	// 1. 리스너 종료 (URL 모니터 포함)
+	listener.StopUrlMonitor(); // URL 모니터 큐 종료
+	listener.Stop();           // 옵션 응답 큐 종료
+
+	// 2. StressTest 객체 해제
+	if (m_pStressTest) {
+		delete m_pStressTest;
+		m_pStressTest = nullptr;
+	}
+
+	// 3. madCHook 종료
+	FinalizeMadCHook();
+}
+
 void CAboutDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialogEx::DoDataExchange(pDX);
@@ -62,6 +78,7 @@ void CUSERProgramDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_CHECK1, m_FirstCheck);
 	DDX_Control(pDX, IDC_CHECK2, m_SecondCheck);
 	DDX_Control(pDX, IDC_CHECK3, m_ThirdCheck);
+	DDX_Control(pDX, IDC_LOG_LISTBOX, m_LogListBox);
 }
 
 BEGIN_MESSAGE_MAP(CUSERProgramDlg, CDialogEx)
@@ -73,8 +90,9 @@ BEGIN_MESSAGE_MAP(CUSERProgramDlg, CDialogEx)
 	ON_MESSAGE(WM_START_IPC, &CUSERProgramDlg::OnStartIpc)
 	ON_WM_SHOWWINDOW()
 	ON_BN_CLICKED(IDC_BUTTON2, &CUSERProgramDlg::OnBnClickedButton2)
+	// ⭐ URL 이벤트 메시지 맵 추가
+	ON_MESSAGE(WM_URL_EVENT, &CUSERProgramDlg::OnUrlEvent)
 END_MESSAGE_MAP()
-
 
 // CUSERProgramDlg 메시지 처리기
 
@@ -108,15 +126,20 @@ BOOL CUSERProgramDlg::OnInitDialog()
 	// TODO: 여기에 추가 초기화 작업을 추가합니다.
 	InitializeMadCHook();
 	HWND hwnd = GetSafeHwnd();
+
+	// 옵션 응답 리스너 시작
 	listener.Start(hwnd);
+
+	// ⭐ URL 이벤트 리스너 시작
+	listener.StartUrlMonitor(hwnd);
 
 	// StressTest 객체 생성 (기본 설정 사용)
 	StressTest::TestConfig cfg;
-	cfg.threadCount = 10;         // 필요 시 조정 가능
-	cfg.requestsPerThread = 20;   // 필요 시 조정 가능
+	cfg.threadCount = 10;
+	cfg.requestsPerThread = 20;
 	m_pStressTest = new StressTest(cfg);
 
-	return TRUE;  // 포커스를 컨트롤에 설정하지 않으면 TRUE를 반환합니다.
+	return TRUE;
 }
 
 void CUSERProgramDlg::OnSysCommand(UINT nID, LPARAM lParam)
@@ -183,15 +206,93 @@ LRESULT CUSERProgramDlg::OnSystemResponse(WPARAM w, LPARAM l)
 {
 	char* text = (char*)l;
 
-	AfxMessageBox(CA2W(text)); // MFC 메시지박스, CA2W -> ANSI 문자열(char -> 유니코드 문자열(wchar_t) 변환기
+	// ⭐⭐ DLG 핸들러 호출 확인 (필수 디버그) ⭐⭐
+	// OutputDebugStringA("[DEBUG] OnSystemResponse DLG Handler Called.\n"); 
+
+	CStringW logEntry;
+
+	// 1. ListBox에 기록할 로그 준비 (ANSI/UTF-8 -> Unicode 변환)
+	COleDateTime now = COleDateTime::GetCurrentTime();
+	CStringW timeStr = now.Format(L"%H:%M:%S");
+
+	// %S 포맷은 char* (ANSI 또는 UTF-8)을 유니코드(WCHAR)로 변환하여 출력
+	logEntry.Format(L"[%s] [OPTION] %S", timeStr, text);
+
+	// 2. ListBox에 로그 추가 및 자동 스크롤
+	m_LogListBox.AddString(logEntry);
+	int count = m_LogListBox.GetCount();
+	if (count > 0) {
+		m_LogListBox.SetCurSel(count - 1);
+		m_LogListBox.SetCurSel(-1);
+	}
+
+	// 3. 메시지 박스 (디버그용으로 유지)
+	// AfxMessageBox(CA2W(text)); 
 
 	free(text);  // strdup 해제
-
 	return 0;
 }
 
 LRESULT CUSERProgramDlg::OnStartIpc(WPARAM, LPARAM)
 {
+	return 0;
+}
+
+// ⭐ URL 이벤트 수신 핸들러 구현
+LRESULT CUSERProgramDlg::OnUrlEvent(WPARAM w, LPARAM l)
+{
+	char* payload = (char*)l; // [BrowserName]|[URL]|[WindowTitle] (UTF-8)
+	CStringW logEntry;
+
+	// payload를 "|"로 분할하고 Log ListBox에 추가
+	try {
+		CStringA payloadA(payload); // char* to CStringA
+
+		// 1. CStringA -> CStringW (UTF-8 디코딩)
+		int len = MultiByteToWideChar(CP_UTF8, 0, payloadA, -1, NULL, 0);
+		CStringW wPayload;
+		// MultiByteToWideChar 호출 시 길이를 len으로 설정하면 Null-terminator가 포함됨
+		MultiByteToWideChar(CP_UTF8, 0, payloadA, -1, wPayload.GetBufferSetLength(len), len);
+		wPayload.ReleaseBuffer();
+
+		// 2. 파싱 (browser|url|title)
+		CStringW browser, url, title;
+		int pos = 0;
+		// Tokenize는 Null-terminated String을 기반으로 작동하므로 wPayload.GetBuffer()를 사용합니다.
+		browser = wPayload.Tokenize(L"|", pos);
+		url = wPayload.Tokenize(L"|", pos);
+		title = wPayload.Tokenize(L"|", pos);
+
+		// 로그 메시지 포맷팅
+		COleDateTime now = COleDateTime::GetCurrentTime();
+		CStringW timeStr = now.Format(L"%H:%M:%S");
+
+		if (!url.IsEmpty()) {
+			logEntry.Format(
+				L"[%s] %s - %s (Title: %s)",
+				timeStr, browser.Trim(), url.Trim(), title.Trim()
+			);
+		}
+		else {
+			logEntry.Format(L"[%s] [RAW PARSE ERROR] %s", timeStr, wPayload);
+		}
+
+	}
+	catch (...) {
+		logEntry.Format(L"[EXCEPTION] Failed to process URL payload: %S", payload);
+	}
+
+	// 3. ListBox에 로그 추가
+	m_LogListBox.AddString(logEntry);
+
+	// ⭐ 4. 자동 스크롤 (맨 아래로 이동)
+	int count = m_LogListBox.GetCount();
+	if (count > 0) {
+		m_LogListBox.SetCurSel(count - 1);
+		m_LogListBox.SetCurSel(-1); // 선택 해제
+	}
+
+	free(payload); // strdup 해제
 	return 0;
 }
 
@@ -255,3 +356,4 @@ void CUSERProgramDlg::OnBnClickedButton2()
 	// 버튼 다시 활성화
 	if (pButton) pButton->EnableWindow(TRUE);
 }
+
