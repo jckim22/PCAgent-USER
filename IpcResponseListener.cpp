@@ -45,7 +45,7 @@ void __stdcall IpcResponseListener::OnResponseMsg(LPVOID /*ctx*/, PVOID msg, DWO
     }
 }
 
-// ⭐ URL 이벤트 수신 큐 (BrowserUrlEvent) 시작 로직 추가
+// URL 이벤트 수신 큐 (BrowserUrlEvent) 시작 로직 추가
 bool IpcResponseListener::StartUrlMonitor(HWND hTargetWnd)
 {
     // s_hTargetWnd가 Start()에서 설정되어 있지 않을 경우 다시 설정
@@ -61,21 +61,13 @@ bool IpcResponseListener::StartUrlMonitor(HWND hTargetWnd)
     );
 }
 
-// ⭐ URL 이벤트 수신 큐 중지 로직 추가
+// URL 이벤트 수신 큐 중지 로직 추가
 void IpcResponseListener::StopUrlMonitor()
 {
     DestroyIpcQueue("BrowserUrlEvent");
-
-    // 두 큐가 모두 해제되었을 때만 s_hTargetWnd를 NULL로 설정
-    // IsIpcQueueCreated 함수가 madCHook에 정의되어 있다고 가정
-    // if (!IsIpcQueueCreated("UserOptionResponse") && !IsIpcQueueCreated("BrowserUrlEvent")) {
-    //     s_hTargetWnd = NULL;
-    // }
-    // 간단화를 위해, Stop()과 StopUrlMonitor() 호출 시점을 사용자가 관리한다고 가정하고,
-    // Start()와 StartUrlMonitor()가 모두 호출되었으므로 Stop()에서 NULL 처리를 하지 않습니다.
 }
 
-// ⭐ URL 이벤트 메시지 핸들러 추가
+// URL 이벤트 메시지 핸들러 추가
 void __stdcall IpcResponseListener::OnUrlEventMsg(LPVOID /*ctx*/, PVOID msg, DWORD size)
 {
     if (!msg || size < sizeof(DWORD) * 2) return; // 최소 헤더 크기 체크

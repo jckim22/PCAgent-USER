@@ -206,7 +206,7 @@ LRESULT CUSERProgramDlg::OnSystemResponse(WPARAM w, LPARAM l)
 {
 	char* text = (char*)l;
 
-	// ⭐⭐ DLG 핸들러 호출 확인 (필수 디버그) ⭐⭐
+	// DLG 핸들러 호출 확인 (필수 디버그) ⭐⭐
 	// OutputDebugStringA("[DEBUG] OnSystemResponse DLG Handler Called.\n"); 
 
 	CStringW logEntry;
@@ -238,7 +238,7 @@ LRESULT CUSERProgramDlg::OnStartIpc(WPARAM, LPARAM)
 	return 0;
 }
 
-// ⭐ URL 이벤트 수신 핸들러 구현
+// URL 이벤트 수신 핸들러 구현
 LRESULT CUSERProgramDlg::OnUrlEvent(WPARAM w, LPARAM l)
 {
 	char* payload = (char*)l; // [BrowserName]|[URL]|[WindowTitle] (UTF-8)
@@ -285,7 +285,7 @@ LRESULT CUSERProgramDlg::OnUrlEvent(WPARAM w, LPARAM l)
 	// 3. ListBox에 로그 추가
 	m_LogListBox.AddString(logEntry);
 
-	// ⭐ 4. 자동 스크롤 (맨 아래로 이동)
+	// 4. 자동 스크롤 (맨 아래로 이동)
 	int count = m_LogListBox.GetCount();
 	if (count > 0) {
 		m_LogListBox.SetCurSel(count - 1);

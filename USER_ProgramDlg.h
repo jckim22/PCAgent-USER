@@ -5,10 +5,10 @@
 #include "IpcResponseListener.h"
 #include "StressTest.h"
 
-// ⭐ URL 이벤트 메시지 ID 추가 (IpcResponseListener.h와 동일)
+// URL 이벤트 메시지 ID 추가 (IpcResponseListener.h와 동일)
 #define WM_START_IPC (WM_USER + 1)
-#define WM_SYSTEM_RESPONSE (WM_USER + 500) // ⭐ ID 값을 변경하여 충돌 회피
-#define WM_URL_EVENT       (WM_USER + 102) // ⭐ URL 이벤트 추가
+#define WM_SYSTEM_RESPONSE (WM_USER + 500) // ID 값을 변경하여 충돌 회피
+#define WM_URL_EVENT       (WM_USER + 102) // URL 이벤트 추가
 
 class StressTest;
 
@@ -18,13 +18,13 @@ class CUSERProgramDlg : public CDialogEx
 	// 생성입니다.
 public:
 	CUSERProgramDlg(CWnd* pParent = nullptr);	// 표준 생성자입니다.	
-	// ⭐ 소멸자 추가 (Resource 해제용)
+	// 소멸자 추가 (Resource 해제용)
 	~CUSERProgramDlg();
 
 	afx_msg LRESULT OnSystemResponse(WPARAM w, LPARAM l);
 	afx_msg LRESULT OnStartIpc(WPARAM, LPARAM);
 	afx_msg void OnShowWindow(BOOL bShow, UINT nStatus);
-	// ⭐ URL 이벤트 핸들러 선언
+	// URL 이벤트 핸들러 선언
 	afx_msg LRESULT OnUrlEvent(WPARAM w, LPARAM l);
 
 	// 대화 상자 데이터입니다.
